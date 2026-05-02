@@ -10,7 +10,7 @@
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
 ![SonarCloud](https://img.shields.io/badge/Code%20Quality-SonarCloud-F3702A?style=for-the-badge&logo=sonarcloud&logoColor=white)
 
-A full-stack quiz platform built with the **MERN stack**, featuring role-based authentication, quiz management, and real-time score tracking.
+A full-stack quiz platform built with the **MERN stack**, featuring role-based authentication, quiz management, and real-time score tracking — with a complete **DevOps pipeline** for containerization, CI/CD, and code quality analysis.
 
 [Live Demo](#) · [Docker Hub](https://hub.docker.com/u/harshasurwase) · [Report Bug](https://github.com/Haruu4304/Quiz-App/issues)
 
@@ -23,11 +23,14 @@ A full-stack quiz platform built with the **MERN stack**, featuring role-based a
 - [About](#-about)
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
-- [DevOps Pipeline](#-devops-pipeline)
+- [DevOps Implementation](#-devops-implementation)
+  - [Lab 4 — Version Control with Git](#lab-4--version-control-with-git)
+  - [Lab 2 — Containerization with Docker](#lab-2--containerization-with-docker)
+  - [Lab 5 — CI/CD with GitHub Actions](#lab-5--cicd-with-github-actions)
+  - [Lab 8 — Code Quality with SonarCloud](#lab-8--code-quality-with-sonarcloud)
 - [Getting Started](#-getting-started)
 - [Environment Variables](#-environment-variables)
 - [API Reference](#-api-reference)
-- [Docker Setup](#-docker-setup)
 - [Project Structure](#-project-structure)
 
 ---
@@ -76,30 +79,219 @@ Quizzy is a full-stack quiz application that allows **admins** to create and man
 
 ---
 
-## 🚀 DevOps Pipeline
+## ⚙️ DevOps Implementation
 
-This project follows a complete DevOps workflow:
+This project implements a complete DevOps pipeline covering version control, containerization, CI/CD automation, and code quality analysis.
 
 ```
-Developer pushes code
+Developer writes code
         ↓
-GitHub Actions triggers automatically
+git push origin main
         ↓
-🔍 SonarCloud scans code quality
+┌─────────────────────────────────┐
+│        GitHub Actions           │
+│                                 │
+│  Job 1: SonarCloud Code Scan   │
+│          ↓ (passes)             │
+│  Job 2: Docker Build & Push    │
+└─────────────────────────────────┘
         ↓
-🐳 Docker images built (client + server)
-        ↓
-📦 Images pushed to Docker Hub
-        ↓
-✅ Deployment ready
+Docker Hub (harshasurwase)
+  ├── quiz-server:latest
+  └── quiz-client:latest
 ```
 
-### Pipeline Status
-| Stage | Status |
+---
+
+### Lab 4 — Version Control with Git
+
+The project is version controlled using **Git** and hosted on **GitHub**.
+
+```bash
+# Repository
+https://github.com/Haruu4304/Quiz-App
+
+# Branch strategy
+main → production-ready code
+```
+
+**What was done:**
+- Full Git history with meaningful commit messages
+- `.gitignore` configured to exclude `node_modules`, `.env`, `build/dist` folders
+- All DevOps config files tracked in the repository
+
+---
+
+### Lab 2 — Containerization with Docker
+
+Both the client and server are containerized using **Docker** and orchestrated with **Docker Compose**.
+
+#### Server Dockerfile (`server/Dockerfile`)
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --production
+COPY . .
+EXPOSE 4000
+CMD ["node", "index.js"]
+```
+
+#### Client Dockerfile (`client/Dockerfile`)
+```dockerfile
+FROM node:18-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+> Multi-stage build used for the client — keeps the final image small by only shipping the built static files via Nginx.
+
+#### Docker Compose (`docker-compose.yml`)
+```yaml
+version: "3.8"
+services:
+  server:
+    build: ./server
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./server/.env
+    restart: unless-stopped
+
+  client:
+    build: ./client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+```
+
+#### Docker Hub
+Both images are publicly available on Docker Hub:
+
+```bash
+# Pull images
+docker pull harshasurwase/quiz-server:latest
+docker pull harshasurwase/quiz-client:latest
+
+# Run locally
+docker compose up
+```
+
+| Image | Link |
 |---|---|
-| Code Quality (SonarCloud) | ![Sonar](https://img.shields.io/badge/SonarCloud-passing-4E9BCD?logo=sonarcloud) |
-| Docker Build | ![Docker](https://img.shields.io/badge/Docker-passing-2496ED?logo=docker) |
-| CI/CD | ![CI](https://img.shields.io/badge/GitHub%20Actions-passing-2088FF?logo=githubactions) |
+| `harshasurwase/quiz-server` | [Docker Hub](https://hub.docker.com/r/harshasurwase/quiz-server) |
+| `harshasurwase/quiz-client` | [Docker Hub](https://hub.docker.com/r/harshasurwase/quiz-client) |
+
+---
+
+### Lab 5 — CI/CD with GitHub Actions
+
+A fully automated CI/CD pipeline is configured using **GitHub Actions** at `.github/workflows/deploy.yml`.
+
+#### Pipeline Trigger
+```
+Every git push to main branch → pipeline runs automatically
+```
+
+#### Pipeline Jobs
+
+**Job 1 — Code Quality Check (SonarCloud)**
+- Scans all source code for bugs, vulnerabilities, and code smells
+- Must pass before Docker build begins (`needs: code-quality`)
+
+**Job 2 — Build & Push Docker Images**
+- Builds fresh Docker images for both client and server
+- Pushes updated images to Docker Hub automatically
+- Uses GitHub Secrets for secure credential management
+
+#### GitHub Secrets Used
+| Secret | Purpose |
+|---|---|
+| `DOCKER_USERNAME` | Docker Hub login |
+| `DOCKER_PASSWORD` | Docker Hub access token |
+| `SONAR_TOKEN` | SonarCloud authentication |
+| `GITHUB_TOKEN` | Auto-provided by GitHub Actions |
+
+#### Full Pipeline (`.github/workflows/deploy.yml`)
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and Push SERVER
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          push: true
+          tags: harshasurwase/quiz-server:latest
+      - name: Build and Push CLIENT
+        uses: docker/build-push-action@v5
+        with:
+          context: ./client
+          push: true
+          tags: harshasurwase/quiz-client:latest
+```
+
+---
+
+### Lab 8 — Code Quality with SonarCloud
+
+**SonarCloud** is integrated to automatically analyze code quality on every push.
+
+#### Configuration (`sonar-project.properties`)
+```properties
+sonar.projectKey=Haruu4304_Quiz-App
+sonar.organization=haruu4304
+sonar.sources=.
+sonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,.github/**
+```
+
+#### Current Analysis Results
+| Metric | Result | Grade |
+|---|---|---|
+| Security | 4 open issues | E |
+| Reliability | 83 open issues | C |
+| Maintainability | 114 open issues | A |
+| Duplications | 3.3% | — |
+| Lines of Code | 2.5k | — |
+
+> 📌 SonarCloud Dashboard: [sonarcloud.io → Quiz-App](https://sonarcloud.io/project/overview?id=Haruu4304_Quiz-App)
 
 ---
 
@@ -109,7 +301,7 @@ GitHub Actions triggers automatically
 
 - Node.js v18+
 - MongoDB Atlas account
-- Docker (optional, for containerized setup)
+- Docker (optional)
 
 ### 1. Clone the repository
 
@@ -163,32 +355,6 @@ npm run dev
 
 ---
 
-## 🐳 Docker Setup
-
-### Using Docker Compose (Recommended)
-
-```bash
-# Build and run both services
-docker compose up --build
-
-# Run in background
-docker compose up -d
-```
-
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:80 |
-| Backend | http://localhost:4000 |
-
-### Pull from Docker Hub
-
-```bash
-docker pull harshasurwase/quiz-server:latest
-docker pull harshasurwase/quiz-client:latest
-```
-
----
-
 ## 📡 API Reference
 
 ### Auth Routes
@@ -223,29 +389,31 @@ docker pull harshasurwase/quiz-client:latest
 
 ```
 Quiz-App/
-├── client/                 # React + Vite frontend
+├── client/                         # React + Vite frontend
 │   ├── src/
 │   │   ├── components/
 │   │   ├── pages/
 │   │   └── services/
-│   ├── Dockerfile
+│   ├── Dockerfile                  # Multi-stage Docker build
+│   ├── .dockerignore
 │   └── package.json
 │
-├── server/                 # Node.js + Express backend
+├── server/                         # Node.js + Express backend
 │   ├── config/
 │   ├── controllers/
 │   ├── models/
 │   ├── routes/
 │   ├── middleware/
-│   ├── Dockerfile
+│   ├── Dockerfile                  # Production Docker build
+│   ├── .dockerignore
 │   └── package.json
 │
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml      # GitHub Actions CI/CD
+│       └── deploy.yml              # GitHub Actions CI/CD pipeline
 │
-├── docker-compose.yml
-├── sonar-project.properties
+├── docker-compose.yml              # Multi-container orchestration
+├── sonar-project.properties        # SonarCloud configuration
 └── README.md
 ```
 
