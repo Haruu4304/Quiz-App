@@ -5,9 +5,23 @@ on:
     branches: [main]
 
 jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ✅ Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   build-and-push:
     runs-on: ubuntu-latest
-
+    needs: code-quality
     steps:
       - name: ✅ Checkout code
         uses: actions/checkout@v3
@@ -18,16 +32,16 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: 🐳 Build & Push SERVER image
+      - name: 🐳 Build and Push SERVER
         uses: docker/build-push-action@v5
         with:
           context: ./server
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/quiz-server:latest
+          tags: harshasurwase/quiz-server:latest
 
-      - name: 🐳 Build & Push CLIENT image
+      - name: 🐳 Build and Push CLIENT
         uses: docker/build-push-action@v5
         with:
           context: ./client
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/quiz-client:latest
+          tags: harshasurwase/quiz-client:latest
