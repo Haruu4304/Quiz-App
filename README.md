@@ -12,7 +12,7 @@
 
 A full-stack quiz platform built with the **MERN stack**, featuring role-based authentication, quiz management, and real-time score tracking — with a complete **DevOps pipeline** for containerization, CI/CD, and code quality analysis.
 
-[Live Demo](https://quiz-app-1e1k.onrender.com/) · [Docker Hub](https://hub.docker.com/u/harshasurwase) · [Report Bug](https://github.com/Haruu4304/Quiz-App/issues)
+[Live Demo](https://quizzy-80lu.onrender.com) · [Docker Hub](https://hub.docker.com/u/harshasurwase) · [Report Bug](https://github.com/Haruu4304/Quiz-App/issues)
 
 </div>
 
